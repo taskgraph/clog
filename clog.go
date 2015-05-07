@@ -395,9 +395,49 @@ type flushSyncWriter interface {
 	io.Writer
 }
 
+// SetLogToStderr ...
+func SetLogToStderr(b bool) error {
+	logging.toStderr = b
+	return nil
+}
+
+// SetAlsoLogToStderr ...
+func SetAlsoLogToStderr(b bool) error {
+	logging.alsoToStderr = b
+	return nil
+}
+
+// SetVerbosity ...
+func SetVerbosity(level int) error {
+	return logging.verbosity.Set(fmt.Sprintf("%d", level))
+}
+
+// SetStderrThreshold ...
+func SetStderrThreshold(level int) error {
+	return logging.stderrThreshold.Set(fmt.Sprintf("%s", level))
+}
+
+// SetVModule ...
+func SetVModule(pattern string) error {
+	return logging.vmodule.Set(pattern)
+}
+
+// SetTraceLocation ...
+func SetTraceLocation(fileline string) error {
+	return logging.traceLocation.Set(fileline)
+}
+
+// SetNoHeader ...
+func SetNoHeader(b bool) error {
+	logging.noHeader = b
+	return nil
+}
+
 func init() {
+	// Keep the flags for now; we'll take them out as we transition.
 	flag.BoolVar(&logging.toStderr, "logtostderr", false, "log to standard error instead of files")
 	flag.BoolVar(&logging.alsoToStderr, "alsologtostderr", false, "log to standard error as well as files")
+	flag.BoolVar(&logging.noHeader, "noheader", false, "output only messages without the header")
 	flag.Var(&logging.verbosity, "v", "log level for V logs")
 	flag.Var(&logging.stderrThreshold, "stderrthreshold", "logs at or above this threshold go to stderr")
 	flag.Var(&logging.vmodule, "vmodule", "comma-separated list of pattern=N settings for file-filtered logging")
@@ -422,6 +462,7 @@ type loggingT struct {
 	// compatibility. TODO: does this matter enough to fix? Seems unlikely.
 	toStderr     bool // The -logtostderr flag.
 	alsoToStderr bool // The -alsologtostderr flag.
+	noHeader     bool // whether to add the header to logged messages.
 
 	// Level flag. Handled atomically.
 	stderrThreshold severity // The -stderrthreshold flag.
@@ -548,6 +589,10 @@ func (l *loggingT) header(s severity, depth int) (*buffer, string, int) {
 
 // formatHeader formats a log header using the provided file name and line number.
 func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
+	buf := l.getBuffer()
+	if l.noHeader {
+		return buf
+	}
 	now := timeNow()
 	if line < 0 {
 		line = 0 // not a real line number, but acceptable to someDigits
@@ -555,7 +600,6 @@ func (l *loggingT) formatHeader(s severity, file string, line int) *buffer {
 	if s > fatalLog {
 		s = infoLog // for safety.
 	}
-	buf := l.getBuffer()
 
 	// Avoid Fprintf, for speed. The format is so simple that we can do it quickly by hand.
 	// It's worth about 3X. Fprintf is hard.
@@ -994,12 +1038,18 @@ type Verbose bool
 // V is at least the value of -v, or of -vmodule for the source file containing the
 // call, the V call will log.
 func V(level Level) Verbose {
+	return Verbose(VDepth(level, 1))
+}
+
+// VDepth is like V but allows offsetting the call stack by depth.
+// This is handy for building a logger on the basis of clog.
+func VDepth(level Level, depth int) bool {
 	// This function tries hard to be cheap unless there's work to do.
 	// The fast path is two atomic loads and compares.
 
 	// Here is a cheap but safe test to see if V logging is enabled globally.
 	if logging.verbosity.get() >= level {
-		return Verbose(true)
+		return true
 	}
 
 	// It's off globally but it vmodule may still be set.
@@ -1010,16 +1060,16 @@ func V(level Level) Verbose {
 		// but if V logging is enabled we're slow anyway.
 		logging.mu.Lock()
 		defer logging.mu.Unlock()
-		if runtime.Callers(2, logging.pcs[:]) == 0 {
-			return Verbose(false)
+		if runtime.Callers(2+depth, logging.pcs[:]) == 0 {
+			return false
 		}
 		v, ok := logging.vmap[logging.pcs[0]]
 		if !ok {
 			v = logging.setV(logging.pcs[0])
 		}
-		return Verbose(v >= level)
+		return v >= level
 	}
-	return Verbose(false)
+	return false
 }
 
 // Info is equivalent to the global Info function, guarded by the value of v.

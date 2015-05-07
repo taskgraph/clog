@@ -83,6 +83,7 @@ func contains(s severity, str string, t *testing.T) bool {
 // setFlags configures the logging flags how the test expects them.
 func setFlags() {
 	logging.toStderr = false
+	logging.noHeader = false
 }
 
 // Test that Info works as advertised.
@@ -405,6 +406,18 @@ func TestLogBacktraceAt(t *testing.T) {
 		// of the traceback format, which may not be dependable.
 		t.Fatal("got no trace back; log is ", contents(infoLog))
 	}
+}
+
+func TestNoHeader(t *testing.T) {
+	setFlags()
+	SetNoHeader(true)
+	defer logging.swap(logging.newBuffers())
+	Infof("fork%s\n", "it")
+	wanted := "forkit\n"
+	if contents(infoLog) != wanted {
+		t.Fatalf("actual != expected: %q != %q", contents(infoLog), wanted)
+	}
+
 }
 
 func BenchmarkHeader(b *testing.B) {
