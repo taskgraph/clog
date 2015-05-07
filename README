@@ -1,7 +1,14 @@
-glog
+clog
 ====
 
 Leveled execution logs for Go.
+
+A fork of the original glog package with various changes that allow
+this package to serve as the low-level foundation for a higher-level
+logging interface:
+
+- removed flags and introduced Setter functions instead
+- add an option that turns off the glog header
 
 This is an efficient pure Go implementation of leveled logs in the
 manner of the open source C++ package
