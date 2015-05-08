@@ -440,6 +440,7 @@ func init() {
 	logging.stderrThreshold = ErrorLog
 
 	logging.setVState(0, nil, false)
+	osExitFunc = os.Exit
 	go logging.flushDaemon()
 }
 
@@ -764,7 +765,7 @@ func (l *loggingT) output(s Severity, buf *buffer, file string, line int, alsoTo
 		if atomic.LoadUint32(&fatalNoStacks) > 0 {
 			l.mu.Unlock()
 			timeoutFlush(10 * time.Second)
-			os.Exit(1)
+			osExitFunc(1)
 		}
 		// Dump all goroutine stacks before exiting.
 		// First, make sure we see the trace for the current goroutine on
@@ -782,7 +783,7 @@ func (l *loggingT) output(s Severity, buf *buffer, file string, line int, alsoTo
 		}
 		l.mu.Unlock()
 		timeoutFlush(10 * time.Second)
-		os.Exit(255) // C++ uses -1, which is silly because it's anded with 255 anyway.
+		osExitFunc(255) // C++ uses -1, which is silly because it's anded with 255 anyway.
 	}
 	l.putBuffer(buf)
 	l.mu.Unlock()
@@ -833,6 +834,7 @@ func stacks(all bool) []byte {
 // for fatal logs. Instead, exit could be a function rather than a method but that
 // would make its use clumsier.
 var logExitFunc func(error)
+var osExitFunc func(int)
 
 // exit is called if there is trouble creating or writing log files.
 // It flushes the logs and exits the program; there's no point in hanging around.
@@ -845,7 +847,7 @@ func (l *loggingT) exit(err error) {
 		return
 	}
 	l.flushAll()
-	os.Exit(2)
+	osExitFunc(2)
 }
 
 // syncBuffer joins a bufio.Writer to its underlying file, providing access to the

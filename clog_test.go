@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	stdLog "log"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -80,8 +81,10 @@ func contains(s Severity, str string, t *testing.T) bool {
 	return strings.Contains(contents(s), str)
 }
 
-// setFlags configures the logging flags how the test expects them.
+// setFlags configures the logging flags and osExitFunc how the test expects
+// them.
 func setFlags() {
+	osExitFunc = os.Exit
 	logging.toStderr = false
 }
 
@@ -419,6 +422,81 @@ func TestPrintWith(t *testing.T) {
 	if res != exp {
 		t.Fatalf("wanted %s, got %s", exp, res)
 	}
+}
+
+func TestCaller(t *testing.T) {
+	setFlags()
+	defer logging.swap(logging.newBuffers())
+	var files [3]string
+	var lines [3]int
+	i := 0
+	filename := "clog_test.go" // could obtain this, but KISS
+
+	fn := func() {
+		files[i], lines[i] = Caller(1)
+		i++
+	}
+
+	fn()
+	fn()
+	fn()
+
+	lastline := -1
+	i--
+	for ; i >= 0; i-- {
+		if files[i] != filename {
+			t.Fatalf("call %d: file not %s, but %s instead", i, filename, files[i])
+		}
+		if lastline != -1 && lines[i] != lastline-1 {
+			t.Fatalf("call %d: next call at %d != %d+1", i, lastline, lines[i])
+		}
+		lastline = lines[i]
+	}
+}
+
+// TestFatalStacktraceStderr verifies that a full stacktrace is output.
+// This test would be more interesting if -logtostderr could actually
+// be tested. Well, it wasn't, and it looked like stack trace dumping
+// was broken when that option was used. This is fixed now, and perhaps
+// in the future clog and this test can be adapted to actually test that;
+// right now clog writes straight to os.StdErr.
+func TestFatalStacktraceStderr(t *testing.T) {
+	setFlags()
+	logging.toStderr = false // TODO
+
+	defer setFlags()
+	defer logging.swap(logging.newBuffers())
+	defer func() {
+		cont := contents(FatalLog)
+		msg := ""
+		if !strings.HasPrefix(cont, "cinap") {
+			msg = "panic output does not begin with cinap"
+		} else if strings.Count(cont, "goroutine ") < 2 {
+			msg = "stack trace contains less than two goroutines"
+		} else if !strings.Contains(cont, "clog_test") {
+			msg = "stack trace does not contain file name"
+		}
+
+		if msg != "" {
+			t.Fatalf("%s: %s", msg, contents(FatalLog))
+		}
+	}()
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		if s, ok := r.(string); !ok || s != "expected" {
+			panic(r)
+		}
+	}()
+
+	// Have to trigger a panic, code relies on execution stopping.
+	osExitFunc = func(int) { panic("expected") }
+	PrintWith(FatalLog, 0, func(buf *bytes.Buffer) {
+		buf.WriteString("cinap")
+	})
+
 }
 
 func BenchmarkHeader(b *testing.B) {
