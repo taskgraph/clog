@@ -105,8 +105,9 @@ const (
 	numSeverity = 4
 )
 
-const SeverityChar = "IWEF"
+const severityChar = "IWEF"
 
+// SeverityName provides a mapping from Severity level to a string.
 var SeverityName = []string{
 	InfoLog:    "INFO",
 	WarningLog: "WARNING",
@@ -138,7 +139,7 @@ func (s *Severity) Get() interface{} {
 func (s *Severity) Set(value string) error {
 	var threshold Severity
 	// Is it a known name?
-	if v, ok := SeverityByName(value); ok {
+	if v, ok := severityByName(value); ok {
 		threshold = v
 	} else {
 		v, err := strconv.Atoi(value)
@@ -151,7 +152,7 @@ func (s *Severity) Set(value string) error {
 	return nil
 }
 
-func SeverityByName(s string) (Severity, bool) {
+func severityByName(s string) (Severity, bool) {
 	s = strings.ToUpper(s)
 	for i, name := range SeverityName {
 		if name == s {
@@ -608,7 +609,7 @@ func (l *loggingT) formatHeader(s Severity, file string, line int) *buffer {
 	_, month, day := now.Date()
 	hour, minute, second := now.Clock()
 	// Lmmdd hh:mm:ss.uuuuuu threadid file:line]
-	buf.tmp[0] = SeverityChar[s]
+	buf.tmp[0] = severityChar[s]
 	buf.twoDigits(1, int(month))
 	buf.twoDigits(3, day)
 	buf.tmp[5] = ' '
@@ -934,7 +935,7 @@ const flushInterval = 30 * time.Second
 
 // flushDaemon periodically flushes the log file buffers.
 func (l *loggingT) flushDaemon() {
-	for _ = range time.NewTicker(flushInterval).C {
+	for range time.NewTicker(flushInterval).C {
 		l.lockAndFlushAll()
 	}
 }
@@ -967,7 +968,7 @@ func (l *loggingT) flushAll() {
 // Valid names are "INFO", "WARNING", "ERROR", and "FATAL".  If the name is not
 // recognized, CopyStandardLogTo panics.
 func CopyStandardLogTo(name string) {
-	sev, ok := SeverityByName(name)
+	sev, ok := severityByName(name)
 	if !ok {
 		panic(fmt.Sprintf("log.CopyStandardLogTo(%q): unrecognized Severity name", name))
 	}
