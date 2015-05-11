@@ -677,11 +677,8 @@ func (buf *buffer) someDigits(i, d int) int {
 // PrintWith allows to write an arbitrary log message to the specified
 // facility of the logger via the buffer supplied to the passed function.
 func PrintWith(s Severity, depth int, f func(buf *bytes.Buffer)) {
-	var file string
-	var line int
-	var buf *buffer
-	file, line = logging.Caller(depth + 1) // since 'Caller' makes assumptions
-	buf = logging.getBuffer()
+	file, line := logging.Caller(depth + 1) // since 'Caller' makes assumptions
+	buf := logging.getBuffer()
 	f(&buf.Buffer)
 	logging.output(Severity(s), buf, file, line, true)
 }
@@ -767,6 +764,7 @@ func (l *loggingT) output(s Severity, buf *buffer, file string, line int, alsoTo
 			l.mu.Unlock()
 			timeoutFlush(10 * time.Second)
 			osExitFunc(1)
+			return
 		}
 		// Dump all goroutine stacks before exiting.
 		// First, make sure we see the trace for the current goroutine on
@@ -785,6 +783,7 @@ func (l *loggingT) output(s Severity, buf *buffer, file string, line int, alsoTo
 		l.mu.Unlock()
 		timeoutFlush(10 * time.Second)
 		osExitFunc(255) // C++ uses -1, which is silly because it's anded with 255 anyway.
+		return
 	}
 	l.putBuffer(buf)
 	l.mu.Unlock()

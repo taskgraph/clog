@@ -463,39 +463,30 @@ func TestCaller(t *testing.T) {
 func TestFatalStacktraceStderr(t *testing.T) {
 	setFlags()
 	logging.toStderr = false // TODO
+	osExitFunc = func(int) {}
 
 	defer setFlags()
 	defer logging.swap(logging.newBuffers())
 	defer func() {
-		cont := contents(FatalLog)
-		msg := ""
-		if !strings.HasPrefix(cont, "cinap") {
-			msg = "panic output does not begin with cinap"
-		} else if strings.Count(cont, "goroutine ") < 2 {
-			msg = "stack trace contains less than two goroutines"
-		} else if !strings.Contains(cont, "clog_test") {
-			msg = "stack trace does not contain file name"
-		}
-
-		if msg != "" {
-			t.Fatalf("%s: %s", msg, contents(FatalLog))
-		}
-	}()
-	defer func() {
-		r := recover()
-		if r == nil {
-			return
-		}
-		if s, ok := r.(string); !ok || s != "expected" {
-			panic(r)
-		}
 	}()
 
-	// Have to trigger a panic, code relies on execution stopping.
-	osExitFunc = func(int) { panic("expected") }
 	PrintWith(FatalLog, 0, func(buf *bytes.Buffer) {
 		buf.WriteString("cinap")
 	})
+
+	cont := contents(FatalLog)
+	msg := ""
+	if !strings.HasPrefix(cont, "cinap") {
+		msg = "panic output does not begin with cinap"
+	} else if strings.Count(cont, "goroutine ") < 2 {
+		msg = "stack trace contains less than two goroutines"
+	} else if !strings.Contains(cont, "clog_test") {
+		msg = "stack trace does not contain file name"
+	}
+
+	if msg != "" {
+		t.Fatalf("%s: %s", msg, contents(FatalLog))
+	}
 
 }
 
