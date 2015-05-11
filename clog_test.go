@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	stdLog "log"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -71,19 +72,20 @@ func (l *loggingT) newBuffers() [numSeverity]flushSyncWriter {
 }
 
 // contents returns the specified log value as a string.
-func contents(s severity) string {
+func contents(s Severity) string {
 	return logging.file[s].(*flushBuffer).String()
 }
 
 // contains reports whether the string is contained in the log.
-func contains(s severity, str string, t *testing.T) bool {
+func contains(s Severity, str string, t *testing.T) bool {
 	return strings.Contains(contents(s), str)
 }
 
-// setFlags configures the logging flags how the test expects them.
+// setFlags configures the logging flags and osExitFunc how the test expects
+// them.
 func setFlags() {
+	osExitFunc = os.Exit
 	logging.toStderr = false
-	logging.noHeader = false
 }
 
 // Test that Info works as advertised.
@@ -91,10 +93,10 @@ func TestInfo(t *testing.T) {
 	setFlags()
 	defer logging.swap(logging.newBuffers())
 	Info("test")
-	if !contains(infoLog, "I", t) {
-		t.Errorf("Info has wrong character: %q", contents(infoLog))
+	if !contains(InfoLog, "I", t) {
+		t.Errorf("Info has wrong character: %q", contents(InfoLog))
 	}
-	if !contains(infoLog, "test", t) {
+	if !contains(InfoLog, "test", t) {
 		t.Error("Info failed")
 	}
 }
@@ -110,7 +112,7 @@ func TestInfoDepth(t *testing.T) {
 	InfoDepth(0, "depth-test0")
 	f()
 
-	msgs := strings.Split(strings.TrimSuffix(contents(infoLog), "\n"), "\n")
+	msgs := strings.Split(strings.TrimSuffix(contents(InfoLog), "\n"), "\n")
 	if len(msgs) != 2 {
 		t.Fatalf("Got %d lines, expected 2", len(msgs))
 	}
@@ -162,10 +164,10 @@ func TestStandardLog(t *testing.T) {
 	setFlags()
 	defer logging.swap(logging.newBuffers())
 	stdLog.Print("test")
-	if !contains(infoLog, "I", t) {
-		t.Errorf("Info has wrong character: %q", contents(infoLog))
+	if !contains(InfoLog, "I", t) {
+		t.Errorf("Info has wrong character: %q", contents(InfoLog))
 	}
-	if !contains(infoLog, "test", t) {
+	if !contains(InfoLog, "test", t) {
 		t.Error("Info failed")
 	}
 }
@@ -182,15 +184,15 @@ func TestHeader(t *testing.T) {
 	Info("test")
 	var line int
 	format := "I0102 15:04:05.067890    1234 clog_test.go:%d] test\n"
-	n, err := fmt.Sscanf(contents(infoLog), format, &line)
+	n, err := fmt.Sscanf(contents(InfoLog), format, &line)
 	if n != 1 || err != nil {
-		t.Errorf("log format error: %d elements, error %s:\n%s", n, err, contents(infoLog))
+		t.Errorf("log format error: %d elements, error %s:\n%s", n, err, contents(InfoLog))
 	}
 	// Scanf treats multiple spaces as equivalent to a single space,
 	// so check for correct space-padding also.
 	want := fmt.Sprintf(format, line)
-	if contents(infoLog) != want {
-		t.Errorf("log format error: got:\n\t%q\nwant:\t%q", contents(infoLog), want)
+	if contents(InfoLog) != want {
+		t.Errorf("log format error: got:\n\t%q\nwant:\t%q", contents(InfoLog), want)
 	}
 }
 
@@ -201,17 +203,17 @@ func TestError(t *testing.T) {
 	setFlags()
 	defer logging.swap(logging.newBuffers())
 	Error("test")
-	if !contains(errorLog, "E", t) {
-		t.Errorf("Error has wrong character: %q", contents(errorLog))
+	if !contains(ErrorLog, "E", t) {
+		t.Errorf("Error has wrong character: %q", contents(ErrorLog))
 	}
-	if !contains(errorLog, "test", t) {
+	if !contains(ErrorLog, "test", t) {
 		t.Error("Error failed")
 	}
-	str := contents(errorLog)
-	if !contains(warningLog, str, t) {
+	str := contents(ErrorLog)
+	if !contains(WarningLog, str, t) {
 		t.Error("Warning failed")
 	}
-	if !contains(infoLog, str, t) {
+	if !contains(InfoLog, str, t) {
 		t.Error("Info failed")
 	}
 }
@@ -223,14 +225,14 @@ func TestWarning(t *testing.T) {
 	setFlags()
 	defer logging.swap(logging.newBuffers())
 	Warning("test")
-	if !contains(warningLog, "W", t) {
-		t.Errorf("Warning has wrong character: %q", contents(warningLog))
+	if !contains(WarningLog, "W", t) {
+		t.Errorf("Warning has wrong character: %q", contents(WarningLog))
 	}
-	if !contains(warningLog, "test", t) {
+	if !contains(WarningLog, "test", t) {
 		t.Error("Warning failed")
 	}
-	str := contents(warningLog)
-	if !contains(infoLog, str, t) {
+	str := contents(WarningLog)
+	if !contains(InfoLog, str, t) {
 		t.Error("Info failed")
 	}
 }
@@ -242,10 +244,10 @@ func TestV(t *testing.T) {
 	logging.verbosity.Set("2")
 	defer logging.verbosity.Set("0")
 	V(2).Info("test")
-	if !contains(infoLog, "I", t) {
-		t.Errorf("Info has wrong character: %q", contents(infoLog))
+	if !contains(InfoLog, "I", t) {
+		t.Errorf("Info has wrong character: %q", contents(InfoLog))
 	}
-	if !contains(infoLog, "test", t) {
+	if !contains(InfoLog, "test", t) {
 		t.Error("Info failed")
 	}
 }
@@ -266,10 +268,10 @@ func TestVmoduleOn(t *testing.T) {
 		t.Error("V enabled for 3")
 	}
 	V(2).Info("test")
-	if !contains(infoLog, "I", t) {
-		t.Errorf("Info has wrong character: %q", contents(infoLog))
+	if !contains(InfoLog, "I", t) {
+		t.Errorf("Info has wrong character: %q", contents(InfoLog))
 	}
-	if !contains(infoLog, "test", t) {
+	if !contains(InfoLog, "test", t) {
 		t.Error("Info failed")
 	}
 }
@@ -286,7 +288,7 @@ func TestVmoduleOff(t *testing.T) {
 		}
 	}
 	V(2).Info("test")
-	if contents(infoLog) != "" {
+	if contents(InfoLog) != "" {
 		t.Error("V logged incorrectly")
 	}
 }
@@ -338,7 +340,7 @@ func TestRollover(t *testing.T) {
 	MaxSize = 512
 
 	Info("x") // Be sure we have a file.
-	info, ok := logging.file[infoLog].(*syncBuffer)
+	info, ok := logging.file[InfoLog].(*syncBuffer)
 	if !ok {
 		t.Fatal("info wasn't created")
 	}
@@ -395,7 +397,7 @@ func TestLogBacktraceAt(t *testing.T) {
 		setTraceLocation(file, line, ok, +2) // Two lines between Caller and Info calls.
 		Info("we want a stack trace here")
 	}
-	numAppearances := strings.Count(contents(infoLog), infoLine)
+	numAppearances := strings.Count(contents(InfoLog), infoLine)
 	if numAppearances < 2 {
 		// Need 2 appearances, one in the log header and one in the trace:
 		//   log_test.go:281: I0511 16:36:06.952398 02238 log_test.go:280] we want a stack trace here
@@ -404,25 +406,93 @@ func TestLogBacktraceAt(t *testing.T) {
 		//   ...
 		// We could be more precise but that would require knowing the details
 		// of the traceback format, which may not be dependable.
-		t.Fatal("got no trace back; log is ", contents(infoLog))
+		t.Fatal("got no trace back; log is ", contents(InfoLog))
 	}
 }
 
-func TestNoHeader(t *testing.T) {
+func TestPrintWith(t *testing.T) {
 	setFlags()
-	SetNoHeader(true)
 	defer logging.swap(logging.newBuffers())
-	Infof("fork%s\n", "it")
-	wanted := "forkit\n"
-	if contents(infoLog) != wanted {
-		t.Fatalf("actual != expected: %q != %q", contents(infoLog), wanted)
+	fn := func(buf *bytes.Buffer) {
+		_, _ = buf.WriteString("testz")
+	}
+	PrintWith(InfoLog, 0, fn)
+	res := contents(InfoLog)
+	exp := "testz"
+	if res != exp {
+		t.Fatalf("wanted %s, got %s", exp, res)
+	}
+}
+
+func TestCaller(t *testing.T) {
+	setFlags()
+	defer logging.swap(logging.newBuffers())
+	var files [3]string
+	var lines [3]int
+	i := 0
+	filename := "clog_test.go" // could obtain this, but KISS
+
+	fn := func() {
+		files[i], lines[i] = Caller(1)
+		i++
+	}
+
+	fn()
+	fn()
+	fn()
+
+	lastline := -1
+	i--
+	for ; i >= 0; i-- {
+		if files[i] != filename {
+			t.Fatalf("call %d: file not %s, but %s instead", i, filename, files[i])
+		}
+		if lastline != -1 && lines[i] != lastline-1 {
+			t.Fatalf("call %d: next call at %d != %d+1", i, lastline, lines[i])
+		}
+		lastline = lines[i]
+	}
+}
+
+// TestFatalStacktraceStderr verifies that a full stacktrace is output.
+// This test would be more interesting if -logtostderr could actually
+// be tested. Well, it wasn't, and it looked like stack trace dumping
+// was broken when that option was used. This is fixed now, and perhaps
+// in the future clog and this test can be adapted to actually test that;
+// right now clog writes straight to os.StdErr.
+func TestFatalStacktraceStderr(t *testing.T) {
+	setFlags()
+	logging.toStderr = false // TODO
+	osExitFunc = func(int) {}
+
+	defer setFlags()
+	defer logging.swap(logging.newBuffers())
+	defer func() {
+	}()
+
+	PrintWith(FatalLog, 0, func(buf *bytes.Buffer) {
+		buf.WriteString("cinap")
+	})
+
+	cont := contents(FatalLog)
+	msg := ""
+	if !strings.HasPrefix(cont, "cinap") {
+		msg = "panic output does not begin with cinap"
+	} else if strings.Count(cont, "goroutine ") < 2 {
+		msg = "stack trace contains less than two goroutines"
+	} else if !strings.Contains(cont, "clog_test") {
+		msg = "stack trace does not contain file name"
+	}
+
+	if msg != "" {
+		t.Fatalf("%s: %s", msg, contents(FatalLog))
 	}
 
 }
 
 func BenchmarkHeader(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		buf, _, _ := logging.header(infoLog, 0)
+		buf, _, _ := logging.header(InfoLog, 0)
 		logging.putBuffer(buf)
 	}
 }
