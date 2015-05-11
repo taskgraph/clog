@@ -414,8 +414,9 @@ func SetVerbosity(level int) error {
 }
 
 // SetStderrThreshold ...
-func SetStderrThreshold(level int) error {
-	return logging.stderrThreshold.Set(fmt.Sprintf("%d", level))
+func SetStderrThreshold(level Severity) error {
+	logging.stderrThreshold.set(level)
+	return nil
 }
 
 // SetVModule ...
