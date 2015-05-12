@@ -111,7 +111,14 @@ func create(tag string, t time.Time) (f *os.File, filename string, err error) {
 	var lastErr error
 	for _, dir := range logDirs {
 		fname := filepath.Join(dir, name)
-		f, err := os.Create(fname)
+
+		// Open the file os.O_APPEND|os.O_CREATE rather than use os.Create.
+		// Append is almost always more efficient than O_RDRW on most modern file systems.
+		f, err = os.OpenFile(fname, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0664)
+		if err != nil {
+			return nil, "", fmt.Errorf("log: cannot create log: %v", err)
+		}
+
 		if err == nil {
 			symlink := filepath.Join(dir, link)
 			os.Remove(symlink)        // ignore err
