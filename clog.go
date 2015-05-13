@@ -681,7 +681,7 @@ func PrintWith(s Severity, depth int, f func(buf *bytes.Buffer)) {
 	file, line := logging.Caller(depth + 1) // since 'Caller' makes assumptions
 	buf := logging.getBuffer()
 	f(&buf.Buffer)
-	logging.output(Severity(s), buf, file, line, true)
+	logging.output(Severity(s), buf, file, line, false)
 }
 
 func (l *loggingT) println(s Severity, args ...interface{}) {
